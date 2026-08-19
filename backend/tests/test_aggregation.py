@@ -49,3 +49,32 @@ def test_offsets_out_of_range_are_clamped():
     text = "Joko"
     entities = build(text, [RawSpan(0, 99, "PER", 0.9)])
     assert entities[0].end == len(text)
+
+
+def test_subword_fragments_of_one_word_merge():
+    """The model tags each subword with B-, so zero gap pieces must rejoin."""
+    text = "Dewi Lestari lahir"
+    spans = [RawSpan(0, 4, "B-PER", 0.9), RawSpan(5, 8, "B-PER", 0.9), RawSpan(8, 12, "B-PER", 0.9)]
+    entities = build(text, spans)
+    assert [e.text for e in entities] == ["Dewi Lestari"]
+
+
+def test_single_space_joins_a_fragmented_name():
+    text = "Joko Widodo hadir"
+    spans = [RawSpan(0, 4, "B-PER", 0.9), RawSpan(5, 8, "B-PER", 0.9), RawSpan(8, 11, "B-PER", 0.9)]
+    assert [e.text for e in build(text, spans)] == ["Joko Widodo"]
+
+
+def test_words_between_entities_still_prevent_merging():
+    text = "Joko dan Prabowo hadir"
+    spans = [RawSpan(0, 4, "B-PER", 0.9), RawSpan(9, 16, "B-PER", 0.9)]
+    assert [e.text for e in build(text, spans)] == ["Joko", "Prabowo"]
+
+
+def test_digit_fragments_of_one_identifier_merge():
+    text = "NIK 3175 0405 8800 0012 aktif"
+    spans = [
+        RawSpan(4, 6, "B-SSN", 0.9), RawSpan(6, 8, "B-SSN", 0.9), RawSpan(9, 13, "B-SSN", 0.9),
+        RawSpan(14, 18, "B-SSN", 0.9), RawSpan(19, 23, "B-SSN", 0.9),
+    ]
+    assert [e.text for e in build(text, spans)] == ["3175 0405 8800 0012"]

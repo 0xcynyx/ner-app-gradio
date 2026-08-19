@@ -10,3 +10,5 @@ backend/static/
 .DS_Store
 *.log
 tsconfig.tsbuildinfo
+tools/compress/artifacts/
+tools/compress/.venv/

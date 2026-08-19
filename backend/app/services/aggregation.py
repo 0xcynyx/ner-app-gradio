@@ -30,8 +30,9 @@ class _Candidate:
 class SpanAggregator:
     """Merges window duplicates and BIO continuations, then resolves label conflicts."""
 
-    def __init__(self, min_score: float = 0.5) -> None:
+    def __init__(self, min_score: float = 0.5, max_word_gap: int = 1) -> None:
         self._min_score = min_score
+        self._max_word_gap = max_word_gap
 
     def build(self, text: str, spans: Iterable[RawSpan], min_score: float | None = None) -> List[Entity]:
         threshold = self._min_score if min_score is None else min_score
@@ -72,7 +73,13 @@ class SpanAggregator:
             if candidate.start < existing.end:
                 return existing
             gap = text[existing.end : candidate.start]
-            if candidate.continuation and (gap == "" or gap.isspace()):
+            # An empty gap can only be tokenizer fragmentation inside one word.
+            if gap == "":
+                return existing
+            if not gap.isspace():
+                break
+            # A continuation tag joins across any whitespace, otherwise only a short run.
+            if candidate.continuation or len(gap) <= self._max_word_gap:
                 return existing
             break
         return None
