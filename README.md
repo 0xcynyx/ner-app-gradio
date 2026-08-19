@@ -63,6 +63,30 @@ backend/.venv/bin/pip install -r backend/requirements-model.txt
 make api
 ```
 
+## Deploy the frontend to Vercel
+
+Vercel cannot run the model. Torch alone exceeds the serverless bundle limit and there is
+nowhere to keep 2.2 GB of weights, and this fine tune is not served by Hugging Face
+serverless inference either. The split that does work is Vercel for the React bundle and a
+container for the API.
+
+1. Deploy the API first, either the Hugging Face Space in this repo or any container host,
+   and note its public URL.
+2. In Vercel, import this repository and set **Root Directory** to `frontend`. No separate
+   repository is required, `frontend/vercel.json` already declares the build and the SPA
+   rewrites.
+3. Add the environment variable `VITE_API_BASE` with the API URL, for example
+   `https://0xcynyx-ner-bahasa-indonesia.hf.space`. It is read at build time, so redeploy
+   after changing it.
+4. Restrict the API to that origin by setting `NER_CORS_ORIGINS` to your Vercel domain. The
+   default of `*` is convenient for a demo and too open for anything else.
+
+Local check of the same wiring:
+
+```bash
+cd frontend && VITE_API_BASE=https://your-api.example npm run build
+```
+
 ## Configuration
 
 Everything is environment driven, nothing operational is hardcoded.

@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 
 import type { ExportFormat } from "./api/types";
-import { api } from "./api/client";
+import { api, API_BASE } from "./api/client";
 import { Toolbar } from "./components/Toolbar";
 import { Banner, Button, Card, Empty, Field, Slider } from "./components/ui";
 import { EntityTable } from "./features/analyze/EntityTable";
@@ -147,7 +147,7 @@ export default function App() {
             ner-roberta-large-bahasa-indonesia-finetuned
           </a>
         </span>
-        <a href="/docs" target="_blank" rel="noreferrer">
+        <a href={`${API_BASE}/docs`} target="_blank" rel="noreferrer">
           API docs
         </a>
       </footer>
