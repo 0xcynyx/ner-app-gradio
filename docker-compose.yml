@@ -1,0 +1,16 @@
+services:
+  ner-studio:
+    build: .
+    ports:
+      - "7860:7860"
+    environment:
+      NER_BACKEND: ${NER_BACKEND:-huggingface}
+      NER_MODEL_ID: ${NER_MODEL_ID:-0xcynyx/ner-roberta-large-bahasa-indonesia-finetuned}
+      NER_MIN_SCORE: ${NER_MIN_SCORE:-0.5}
+      NER_WARMUP: ${NER_WARMUP:-true}
+      NER_PSEUDONYM_SALT: ${NER_PSEUDONYM_SALT:-}
+    volumes:
+      - hf-cache:/tmp/huggingface
+
+volumes:
+  hf-cache:
