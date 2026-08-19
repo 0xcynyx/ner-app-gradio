@@ -1,5 +1,0 @@
-gradio==5.0.1 
-transformers
-spacy
-torch
-torchvision
