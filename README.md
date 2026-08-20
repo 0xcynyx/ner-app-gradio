@@ -22,6 +22,12 @@ F1. Seven types: person, location, date or time, email, phone, gender, and Indon
 An optional FastAPI backend is included for server side or batch use, but nothing in the web app
 requires it.
 
+[![NER Studio running on device](docs/screenshot.png)](https://ner-app-gradio.vercel.app)
+
+Live: [ner-app-gradio.vercel.app](https://ner-app-gradio.vercel.app). The ✓ marks on the
+national ID and phone number mean an exact format check confirmed them, and `pria` was split
+out of the person span into its own gender entity.
+
 ## Deploy the web app
 
 It is a static bundle, 56 KB gzipped, so any static host works and none of them need a plan.
@@ -56,7 +62,7 @@ No inference server, and no heavy client libraries either.
 | Post processing | TypeScript port of the backend services | a static deployment has no server to call |
 
 The tokenizer is verified to emit identical ids to the Python tokenizer, so the browser path is
-not an approximation of the server path.
+not an approximation of the server path. Confirmed running on device in the screenshot above.
 
 ## What it does beyond the original demo
 
