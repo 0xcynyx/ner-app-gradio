@@ -1,11 +1,13 @@
 import { useRef, useState } from "react";
 
 import { api } from "../../api/client";
+import { analyzeMany } from "../../engine";
+import type { Mode } from "../../engine";
 import type { BatchResult } from "../../api/types";
 import { Banner, Button, Empty, Field } from "../../components/ui";
 
 // Batch mode treats one line as one document, matching the txt upload contract.
-export function BatchPanel({ minScore }: { minScore: number }) {
+export function BatchPanel({ minScore, mode }: { minScore: number; mode: Mode }) {
   const [raw, setRaw] = useState("");
   const [result, setResult] = useState<BatchResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -30,11 +32,25 @@ export function BatchPanel({ minScore }: { minScore: number }) {
       setError("Add at least one line of text.");
       return;
     }
-    void run(() => api.batch(lines, minScore));
+    void run(() => analyzeMany(mode, lines, minScore) as Promise<BatchResult>);
   };
 
+  // In browser mode the file is read locally, so no server round trip is needed.
   const upload = (file: File | undefined) => {
-    if (file) void run(() => api.upload(file));
+    if (!file) return;
+    if (mode === "server") {
+      void run(() => api.upload(file));
+      return;
+    }
+    void run(async () => {
+      const body = await file.text();
+      const rows = file.name.toLowerCase().endsWith(".csv")
+        ? body.split("\n").slice(1).map((line) => line.split(",").slice(1).join(","))
+        : body.split("\n");
+      const lines = rows.map((line) => line.trim()).filter(Boolean);
+      if (lines.length === 0) throw new Error("no readable rows in file");
+      return analyzeMany(mode, lines, minScore) as Promise<BatchResult>;
+    });
   };
 
   return (

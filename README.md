@@ -3,21 +3,60 @@ title: NER Studio Bahasa Indonesia
 emoji: 🔎
 colorFrom: indigo
 colorTo: purple
-sdk: docker
-app_port: 7860
+sdk: static
+app_file: frontend/dist/index.html
 pinned: false
 license: mit
 ---
 
 # NER Studio, Bahasa Indonesia
 
-Named entity recognition and PII redaction for Indonesian text, built on
-[ner-roberta-large-bahasa-indonesia-finetuned](https://huggingface.co/0xcynyx/ner-roberta-large-bahasa-indonesia-finetuned).
-A FastAPI service with a layered core and a React frontend, shipped as one container.
+Named entity recognition and PII redaction for Indonesian text that **runs entirely in your
+browser**. The model is 11.7 MB, downloaded once and cached, so your text never leaves your
+device and there is no server to pay for.
 
-The model detects seven types: person, location, date or time, email, phone, gender, and
-Indonesian national ID. That makes it a PII scanner, so the app is built around finding
-identifiers and then removing them.
+Model: [0xcynyx/ner-pii-indonesian-mini](https://huggingface.co/0xcynyx/ner-pii-indonesian-mini),
+distilled from a 2,235 MB teacher down to 11.7 MB, **191 times smaller** at 99.5 percent of its
+F1. Seven types: person, location, date or time, email, phone, gender, and Indonesian NIK.
+
+An optional FastAPI backend is included for server side or batch use, but nothing in the web app
+requires it.
+
+## Deploy the web app
+
+It is a static bundle, 56 KB gzipped, so any static host works and none of them need a plan.
+
+**Vercel**
+
+1. Import this repository at [vercel.com/new](https://vercel.com/new).
+2. Set **Root Directory** to `frontend`. Everything else is already declared in
+   `frontend/vercel.json`.
+3. Deploy. No environment variables are needed, browser inference is the default.
+
+To point the app at a server backend instead, set `VITE_API_BASE` to its URL and a
+run-in-browser or run-on-server switch appears in the header.
+
+**Any other static host**
+
+```bash
+cd frontend && npm install && npm run build   # writes dist/
+```
+
+Upload `dist/`. This also works on a free Hugging Face Static Space, which is the only Space
+tier that stays free now that Gradio and Docker Spaces require a paid plan.
+
+## How the browser path works
+
+No inference server, and no heavy client libraries either.
+
+| Piece | Choice | Why |
+|---|---|---|
+| Tokenizer | 130 line WordPiece in `src/engine/wordpiece.ts` | transformers.js would add about 900 KB just to tokenize, and it does not support this architecture for token classification |
+| Runtime | onnxruntime-web loaded from a CDN | bundling it pulls in 44 MB of WASM variants |
+| Post processing | TypeScript port of the backend services | a static deployment has no server to call |
+
+The tokenizer is verified to emit identical ids to the Python tokenizer, so the browser path is
+not an approximation of the server path.
 
 ## What it does beyond the original demo
 
@@ -31,7 +70,8 @@ identifiers and then removing them.
 | Confidence control | A live minimum score threshold, with per entity scores in the table and tooltips. |
 | Batch and file input | Many documents at once, or upload a txt file as one document per line or a csv with a text column. |
 | Exports | JSON, JSONL, and CSV downloads. |
-| Correct entity boundaries | Adjacent same type entities no longer fuse, so "Joko dan Prabowo" stays two people. |
+| Correct entity boundaries | Adjacent same type entities no longer fuse, so "Joko dan Prabowo" stays two people, while subword fragments of one name rejoin. |
+| Regex outranks the model on exact formats | The uncased model reads `siti.rahma@contoh.co.id` as a person. An exact email match is stronger evidence, so it wins. |
 | Demo backend | A rule based classifier satisfies the same interface, so the UI and the full test suite run with no model download. |
 
 ## Run with Docker
@@ -123,9 +163,25 @@ backend/app/container composition root, the only module that knows every concret
 make test
 ```
 
-49 backend tests cover chunking, BIO aggregation, regex verification, every redaction
-strategy, cross window offset mapping, caching, and all endpoints. They run without torch
-because the classifier is injected.
+57 backend tests cover chunking, BIO aggregation, regex verification, every redaction strategy,
+cross window offset mapping, caching, and all endpoints. They run without torch because the
+classifier is injected.
+
+## Making the model smaller
+
+`tools/compress` holds the pipeline that produced the 11.7 MB model, and it is reusable for any
+Hugging Face token classifier.
+
+| Stage | Size | F1 | ms/doc CPU |
+|---|---|---|---|
+| Original teacher | 2,235 MB | 0.9098 | 48.8 |
+| Vocabulary trimmed, INT8 | 337 MB | 0.8883 | 18.6 |
+| Distilled student, INT8 | **11.7 MB** | 0.9049 | **12.1** |
+
+Vocabulary trimming alone removed 40 percent of the parameters with identical output, because
+nearly half of XLM-R large is an embedding table for 100 languages. See
+[tools/compress/README.md](tools/compress/README.md) for the method and the traps, including the
+ALBERT weight sharing issue that inflated the first quantized build from 11.7 MB to 41 MB.
 
 ## Limitations
 

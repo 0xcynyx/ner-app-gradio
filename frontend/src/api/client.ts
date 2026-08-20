@@ -1,7 +1,8 @@
 // Single transport boundary, components never call fetch directly.
 import type { Analysis, BatchResult, ExportFormat, Meta, RedactResult } from "./types";
 
-const BASE = import.meta.env.VITE_API_BASE ?? "";
+export const API_BASE = import.meta.env.VITE_API_BASE ?? "";
+const BASE = API_BASE;
 
 async function post<T>(path: string, body: unknown): Promise<T> {
   const response = await fetch(`${BASE}${path}`, {

@@ -7,7 +7,7 @@ recovers instances the model missed, which raises recall on exactly the highest 
 
 from __future__ import annotations
 
-from typing import List, Sequence
+from typing import Dict, List, Sequence
 
 from app.domain.models import Entity
 from app.domain.patterns import PATTERNS
@@ -24,8 +24,29 @@ class RegexVerifier:
 
     def verify(self, text: str, entities: Sequence[Entity]) -> List[Entity]:
         matches = self._scan(text)
-        repaired = [self._repair(entity, matches) for entity in entities]
-        return self._add_missing(repaired, matches) if self._recover else repaired
+        if not self._recover:
+            return self._dedupe([self._repair(entity, matches) for entity in entities])
+        # An exact format match outranks a model guess, so regex owns the structured types.
+        kept = list(matches)
+        kept.extend(e for e in entities if not any(e.start < m.end and m.start < e.end for m in matches))
+        return self._dedupe(kept)
+
+    def _dedupe(self, entities: Sequence[Entity]) -> List[Entity]:
+        """Repair can snap several fragments onto one match, so collapse the copies it creates."""
+        best: Dict[tuple, Entity] = {}
+        for entity in entities:
+            key = (entity.start, entity.end, entity.label)
+            current = best.get(key)
+            if current is None or entity.score > current.score:
+                best[key] = entity
+        ordered = sorted(best.values(), key=lambda e: (e.start, -(e.end - e.start)))
+        kept: List[Entity] = []
+        for entity in ordered:
+            # A span of the same type sitting inside a longer one is the same entity twice.
+            if any(e.label == entity.label and e.start <= entity.start and entity.end <= e.end for e in kept):
+                continue
+            kept.append(entity)
+        return kept
 
     def _scan(self, text: str) -> List[Entity]:
         """Collect every regex hit as a candidate entity."""

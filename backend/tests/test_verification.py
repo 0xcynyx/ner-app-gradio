@@ -36,3 +36,39 @@ def test_unstructured_labels_are_left_alone():
 def test_recovery_can_be_disabled():
     text = "email a@b.co"
     assert RegexVerifier(recover_missing=False).verify(text, []) == []
+
+
+def test_fragments_snapped_to_one_match_are_deduplicated():
+    """Repair maps every overlapping fragment onto the same regex match, so copies must collapse."""
+    text = "Balasan dari joko@mail.com diterima"
+    start = text.index("joko")
+    fragments = [
+        entity(start, start + 4, "EMAIL", "joko"),
+        entity(start + 5, start + 13, "EMAIL", "mail.com"),
+    ]
+    found = RegexVerifier().verify(text, fragments)
+    emails = [e for e in found if e.label == "EMAIL"]
+    assert len(emails) == 1
+    assert emails[0].text == "joko@mail.com"
+
+
+def test_contained_duplicate_of_same_label_is_dropped():
+    text = "hubungi 081234567890 sekarang"
+    inner = entity(8, 12, "PHONE", "0812")
+    found = RegexVerifier(recover_missing=False).verify(text, [inner, entity(8, 20, "PHONE", "081234567890")])
+    assert len([e for e in found if e.label == "PHONE"]) == 1
+
+
+def test_regex_overrides_a_wrong_model_label_on_structured_text():
+    """The model reads siti.rahma@contoh.co.id as a name, the exact format says otherwise."""
+    text = "hubungi siti.rahma@contoh.co.id sekarang"
+    start = text.index("siti")
+    mislabelled = entity(start, start + len("siti.rahma@contoh.co.id"), "PER", "siti.rahma@contoh.co.id")
+    found = RegexVerifier().verify(text, [mislabelled])
+    assert [(e.label, e.text) for e in found] == [("EMAIL", "siti.rahma@contoh.co.id")]
+
+
+def test_unstructured_entities_survive_alongside_matches():
+    text = "Budi di budi@mail.co"
+    found = RegexVerifier().verify(text, [entity(0, 4, "PER", "Budi")])
+    assert {(e.label, e.text) for e in found} == {("PER", "Budi"), ("EMAIL", "budi@mail.co")}
