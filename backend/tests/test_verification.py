@@ -36,3 +36,24 @@ def test_unstructured_labels_are_left_alone():
 def test_recovery_can_be_disabled():
     text = "email a@b.co"
     assert RegexVerifier(recover_missing=False).verify(text, []) == []
+
+
+def test_fragments_snapped_to_one_match_are_deduplicated():
+    """Repair maps every overlapping fragment onto the same regex match, so copies must collapse."""
+    text = "Balasan dari joko@mail.com diterima"
+    start = text.index("joko")
+    fragments = [
+        entity(start, start + 4, "EMAIL", "joko"),
+        entity(start + 5, start + 13, "EMAIL", "mail.com"),
+    ]
+    found = RegexVerifier().verify(text, fragments)
+    emails = [e for e in found if e.label == "EMAIL"]
+    assert len(emails) == 1
+    assert emails[0].text == "joko@mail.com"
+
+
+def test_contained_duplicate_of_same_label_is_dropped():
+    text = "hubungi 081234567890 sekarang"
+    inner = entity(8, 12, "PHONE", "0812")
+    found = RegexVerifier(recover_missing=False).verify(text, [inner, entity(8, 20, "PHONE", "081234567890")])
+    assert len([e for e in found if e.label == "PHONE"]) == 1

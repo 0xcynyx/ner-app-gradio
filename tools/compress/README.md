@@ -89,3 +89,40 @@ The checkpoint emits `B-` on every subword piece and never `I-`, so raw output f
 the aggregation layer scores this model at roughly 0.10 F1 rather than 0.91, and the first
 version of this harness made exactly that mistake. It also proved that same type spans touching
 with no separator must merge unconditionally, which the backend aggregator now does.
+
+## Stage 1, distillation to a browser sized model
+
+```bash
+# 1. Synthetic PII text, dense in the patterns that matter.
+.venv/bin/python gen_corpus.py --out artifacts/train_raw.txt --count 30000
+
+# 2. Label it with the teacher, applying production post processing first.
+.venv/bin/python label_with_teacher.py --teacher artifacts/trimmed-id \
+  --source artifacts/train_raw.txt --source artifacts/corpus_id.txt \
+  --out-train artifacts/distill_train.jsonl --out-dev artifacts/distill_dev.jsonl
+
+# 3. Train the student on character span supervision.
+.venv/bin/python train_student.py --train artifacts/distill_train.jsonl \
+  --dev artifacts/distill_dev.jsonl --out artifacts/student --epochs 1 --batch-size 16
+
+# 4. Export and quantize.
+.venv/bin/python export_onnx.py --model artifacts/student --out artifacts/student-onnx
+```
+
+Result: [0xcynyx/ner-pii-indonesian-mini](https://huggingface.co/0xcynyx/ner-pii-indonesian-mini),
+11.7 MB quantized, dev F1 0.9049, 12.1 ms per document on CPU.
+
+| Stage | Size | F1 | ms/doc |
+|---|---|---|---|
+| Original teacher | 2,235 MB | 0.9098 | 48.8 |
+| Stage 0, trimmed INT8 | 337 MB | 0.8883 | 18.6 |
+| Stage 1, distilled INT8 | **11.7 MB** | 0.9049 | **12.1** |
+
+### The ALBERT quantization trap
+
+The first INT8 export came out at 41 MB instead of the expected 11 MB. ALBERT reuses one layer
+twelve times, and the ONNX exporter represents each reuse as an `Identity` node aliasing the
+same weight. The quantizer converted the first use and left the float original alive for the
+eleven aliases, so the file carried both copies. `fold_identity` in `export_onnx.py` collapses
+the aliases before quantization, which is what takes it to 11.7 MB. Any shared weight
+architecture will hit this.
