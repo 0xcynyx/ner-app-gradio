@@ -57,3 +57,18 @@ def test_contained_duplicate_of_same_label_is_dropped():
     inner = entity(8, 12, "PHONE", "0812")
     found = RegexVerifier(recover_missing=False).verify(text, [inner, entity(8, 20, "PHONE", "081234567890")])
     assert len([e for e in found if e.label == "PHONE"]) == 1
+
+
+def test_regex_overrides_a_wrong_model_label_on_structured_text():
+    """The model reads siti.rahma@contoh.co.id as a name, the exact format says otherwise."""
+    text = "hubungi siti.rahma@contoh.co.id sekarang"
+    start = text.index("siti")
+    mislabelled = entity(start, start + len("siti.rahma@contoh.co.id"), "PER", "siti.rahma@contoh.co.id")
+    found = RegexVerifier().verify(text, [mislabelled])
+    assert [(e.label, e.text) for e in found] == [("EMAIL", "siti.rahma@contoh.co.id")]
+
+
+def test_unstructured_entities_survive_alongside_matches():
+    text = "Budi di budi@mail.co"
+    found = RegexVerifier().verify(text, [entity(0, 4, "PER", "Budi")])
+    assert {(e.label, e.text) for e in found} == {("PER", "Budi"), ("EMAIL", "budi@mail.co")}

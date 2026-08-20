@@ -24,9 +24,12 @@ class RegexVerifier:
 
     def verify(self, text: str, entities: Sequence[Entity]) -> List[Entity]:
         matches = self._scan(text)
-        repaired = [self._repair(entity, matches) for entity in entities]
-        found = self._add_missing(repaired, matches) if self._recover else repaired
-        return self._dedupe(found)
+        if not self._recover:
+            return self._dedupe([self._repair(entity, matches) for entity in entities])
+        # An exact format match outranks a model guess, so regex owns the structured types.
+        kept = list(matches)
+        kept.extend(e for e in entities if not any(e.start < m.end and m.start < e.end for m in matches))
+        return self._dedupe(kept)
 
     def _dedupe(self, entities: Sequence[Entity]) -> List[Entity]:
         """Repair can snap several fragments onto one match, so collapse the copies it creates."""
